@@ -1,6 +1,7 @@
 # tactian_gcs_offline_web_UI
 web UI with offline maps
 
+![Tactian GCS with offline maps](images/webUI.jpg)
 
 ### Instructions
 
