@@ -1,0 +1,82 @@
+{
+  "version": 8,
+  "name": "Tactical High-Vis (No Fonts)",
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "tiles": ["http://localhost:8000/tiles/{z}/{x}/{y}.pbf"],
+      "minzoom": 0,
+      "maxzoom": 14
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#0e1115"
+      }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landuse",
+      "paint": {
+        "fill-color": "#1c2128"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#1a3b5c",
+        "fill-outline-color": "#2f5c8a"
+      }
+    },
+    {
+      "id": "runways",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "aeroway",
+      "paint": {
+        "fill-color": "#333d4d",
+        "fill-outline-color": "#506070"
+      }
+    },
+    {
+      "id": "roads",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "paint": {
+        "line-color": "#505050",
+        "line-width": 1.5
+      }
+    },
+    {
+      "id": "major-roads",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "motorway", "trunk", "primary"],
+      "paint": {
+        "line-color": "#707070",
+        "line-width": 3
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "building",
+      "paint": {
+        "fill-color": "#222a33",
+        "fill-opacity": 0.8,
+        "fill-outline-color": "#3e4c5e"
+      }
+    }
+  ]
+}

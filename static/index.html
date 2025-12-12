@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Offline UGV Command</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <style>
+        body { margin: 0; padding: 0; font-family: monospace; display: flex; height: 100vh; }
+        #sidebar {
+            width: 300px;
+            background: #222;
+            color: #0f0;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #444;
+        }
+        #map { flex-grow: 1; }
+        h2 { margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .data-row { margin-bottom: 10px; }
+        .label { color: #888; font-size: 0.8em; }
+        .value { font-weight: bold; font-size: 1.1em; }
+        button {
+            background: #0f0; color: #000; border: none; padding: 10px;
+            font-family: monospace; font-weight: bold; cursor: pointer; margin-top: 20px;
+        }
+        button:hover { background: #fff; }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+        #status-log { margin-top: auto; height: 150px; overflow-y: auto; border-top: 1px solid #444; padding-top: 10px; font-size: 0.8em; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>UGV COMMAND</h2>
+    
+    <div class="data-row">
+        <div class="label">ROBOT ID</div>
+        <div class="value" id="disp-id">--</div>
+    </div>
+    <div class="data-row">
+        <div class="label">STATUS</div>
+        <div class="value" id="disp-status">--</div>
+    </div>
+    <div class="data-row">
+        <div class="label">POSITION</div>
+        <div class="value" id="disp-pos">--</div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #444; width: 100%; margin: 20px 0;">
+
+    <div class="data-row">
+        <div class="label">SELECTED WAYPOINT</div>
+        <div class="value" id="disp-wp">None</div>
+    </div>
+    
+    <button id="btn-send" disabled>SEND WAYPOINT</button>
+
+    <div id="status-log">
+        <div>System initialized.</div>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // --- Configuration ---
+    const API_HOST = 'http://localhost:8000';
+    let selectedCoords = null;
+
+    // --- Initialize Map ---
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: '/style.json', 
+        center: [9.521, 47.141],  // For california use: center: [-122.42215, 37.41451], 
+        zoom: 12
+    });
+
+    map.addControl(new maplibregl.NavigationControl());
+
+    map.on('load', async () => {
+        log("Map loaded. Fetching mission data...");
+
+        // 1. Add Mission Polygon Layer
+        try {
+            const missionData = await fetch(`${API_HOST}/api/mission`).then(r => r.json());
+            map.addSource('mission-source', { type: 'geojson', data: missionData });
+            
+            // Fill
+            map.addLayer({
+                'id': 'mission-fill',
+                'type': 'fill',
+                'source': 'mission-source',
+                'paint': { 'fill-color': '#00ff00', 'fill-opacity': 0.1 }
+            });
+            // Outline
+            map.addLayer({
+                'id': 'mission-outline',
+                'type': 'line',
+                'source': 'mission-source',
+                'paint': { 'line-color': '#00ff00', 'line-width': 2 }
+            });
+        } catch(e) { log("Error loading mission: " + e); }
+
+        // 2. Add Robot Layer
+        map.addSource('robot-source', {
+            type: 'geojson',
+            data: { type: "FeatureCollection", features: [] } 
+        });
+
+        map.addLayer({
+            'id': 'robot-point',
+            'type': 'circle',
+            'source': 'robot-source',
+            'paint': {
+                'circle-radius': 8,
+                'circle-color': '#ff0000',
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff'
+            }
+        });
+
+        // Start polling for robot position
+        setInterval(updateRobot, 1000);
+    });
+
+    // --- Robot Telemetry Loop ---
+    async function updateRobot() {
+        try {
+            const response = await fetch(`${API_HOST}/api/robot`);
+            const data = await response.json();
+            
+            // Update map source
+            const source = map.getSource('robot-source');
+            if (source) source.setData(data);
+
+            // Update Sidebar
+            if (data.features.length > 0) {
+                const props = data.features[0].properties;
+                const coords = data.features[0].geometry.coordinates;
+                document.getElementById('disp-id').innerText = props.id;
+                document.getElementById('disp-status').innerText = props.status;
+                document.getElementById('disp-pos').innerText = `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`;
+            }
+        } catch (e) { console.error("Telemetry connection lost"); }
+    }
+
+    // --- Waypoint Logic ---
+    const wpMarker = new maplibregl.Marker({ color: "#ffff00" });
+
+    map.on('click', (e) => {
+        selectedCoords = e.lngLat;
+        wpMarker.setLngLat(selectedCoords).addTo(map);
+        
+        document.getElementById('disp-wp').innerText = 
+            `${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`;
+        document.getElementById('btn-send').disabled = false;
+        log(`Waypoint set locally: ${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`);
+    });
+
+    document.getElementById('btn-send').addEventListener('click', async () => {
+        if (!selectedCoords) return;
+        
+        log("Sending waypoint to robot...");
+        try {
+            const res = await fetch(`${API_HOST}/api/waypoint`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat: selectedCoords.lat, lon: selectedCoords.lng })
+            });
+            
+            if (res.ok) {
+                log("Success: Robot accepted command.");
+                // Reset UI
+                selectedCoords = null;
+                wpMarker.remove();
+                document.getElementById('disp-wp').innerText = "None";
+                document.getElementById('btn-send').disabled = true;
+            } else {
+                log("Error: Backend rejected command.");
+            }
+        } catch (e) { log("Network Error: " + e); }
+    });
+
+    function log(msg) {
+        const div = document.getElementById('status-log');
+        const entry = document.createElement('div');
+        entry.innerText = `> ${msg}`;
+        div.prepend(entry);
+    }
+</script>
+</body>
+</html>
