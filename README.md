@@ -13,7 +13,7 @@ Please read the instructions document:
 
 A first pass (via Gemini) implementation is shown below:
 
-offline_ui/  
+tactian_gcs_offline_web_UI/  
 ├── main.py                 # The FastAPI Backend & Tile Server  
 ├── requirements.txt        # Python dependencies  
 ├── create_dummy_db.py      # Script to create an empty MBTiles file for initial testing  
